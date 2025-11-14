@@ -1,0 +1,897 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>듣기 수행평가 연습기</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+        /* 1. 기본 & 미니멀리즘 스타일 */
+        :root {
+            --bg-color: #ffffff;
+            --text-color: #222222;
+            --border-color: #eeeeee;
+            --highlight-bg: #fff0a0;
+            --vocab-bg: #d0f0ff;
+            --correct-color: #008000;
+            --incorrect-color: #d00000;
+            --button-bg: #f5f5f5;
+            --button-hover-bg: #e0e0e0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen,
+                Ubuntu, Cantarell, "Open Sans", "Helvetica Neue", sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            line-height: 1.6;
+            margin: 0;
+            padding: 20px;
+            transition: background-color 0.3s, color 0.3s;
+        }
+
+        /* 2. 다크 모드 */
+        body.dark-mode {
+            --bg-color: #222222;
+            --text-color: #eeeeee;
+            --border-color: #444444;
+            --highlight-bg: #5a5000;
+            --vocab-bg: #003a5c;
+            --button-bg: #333333;
+            --button-hover-bg: #555555;
+        }
+
+        /* 3. 레이아웃 및 공통 컴포넌트 */
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        button,
+        input[type="number"],
+        select {
+            font-size: 1rem;
+            padding: 8px 12px;
+            border: 1px solid var(--border-color);
+            background-color: var(--button-bg);
+            color: var(--text-color);
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+            transition: background-color 0.2s;
+        }
+        
+        input[type="file"] {
+            font-size: 0.95rem;
+            border: 1px solid var(--border-color);
+            background-color: var(--button-bg);
+            color: var(--text-color);
+            border-radius: 5px;
+            padding: 5px;
+            width: 100%;
+            box-sizing: border-box; /* padding이 너비에 포함되도록 */
+        }
+
+
+        button:hover {
+            background-color: var(--button-hover-bg);
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        header {
+            border-bottom: 2px solid var(--border-color);
+            padding-bottom: 20px;
+            margin-bottom: 20px;
+        }
+
+        nav {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .view {
+            display: none; /* 뷰는 기본적으로 숨김 */
+        }
+        .view.active {
+            display: block; /* 활성화된 뷰만 보임 */
+        }
+
+        audio {
+            width: 100%;
+            margin-top: 20px;
+        }
+
+        /* [수정됨] 파일 로더 UI/UX 개선 */
+        .file-loader {
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 15px;
+            background-color: var(--button-bg);
+        }
+        .file-input-group {
+            margin: 12px 0;
+        }
+        .file-input-group label {
+            display: block;
+            font-weight: 500;
+            margin-bottom: 5px;
+        }
+        body.dark-mode .file-loader {
+            background-color: #333;
+        }
+
+
+        /* 4. 스크립트 뷰 스타일 */
+        #script-list p {
+            padding: 10px;
+            border-bottom: 1px dashed var(--border-color);
+            cursor: pointer;
+        }
+        #script-list p:hover {
+            background-color: var(--button-bg);
+        }
+        #script-list p .time {
+            font-size: 0.8em;
+            color: #888;
+            margin-right: 10px;
+            display: inline-block;
+            width: 90px;
+        }
+        #script-list p .sentence span {
+            padding: 2px 0;
+            border-radius: 3px;
+        }
+
+        /* 5. 하이라이트 스타일 */
+        .sentence span.highlighted {
+            background-color: var(--highlight-bg);
+        }
+        .sentence span.vocab {
+            background-color: var(--vocab-bg);
+            border-radius: 3px;
+            font-weight: 500;
+        }
+
+        /* 6. 모의 테스트 뷰 스타일 */
+        .test-controls {
+            padding: 15px;
+            border: 1px solid var(--border-color);
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+
+        #test-content .sentence {
+            margin-bottom: 15px;
+            line-height: 2;
+        }
+
+        .hax-input {
+            border: none;
+            border-bottom: 1.5px solid var(--text-color);
+            background-color: transparent;
+            color: var(--text-color);
+            font: inherit;
+            text-align: center;
+            padding: 2px 4px;
+            min-width: 60px;
+            margin: 0 2px;
+        }
+        .hax-input::placeholder {
+            color: #999;
+            opacity: 0.6;
+        }
+        .hax-input-group {
+            display: inline-block;
+            margin: 0 4px;
+        }
+        
+        /* 채점 결과 */
+        .test-result {
+            padding: 2px 4px;
+            border-radius: 3px;
+            font-weight: 600;
+        }
+        .test-result.correct {
+            color: var(--correct-color);
+            background-color: #e0ffe0;
+        }
+        .test-result.incorrect {
+            color: var(--incorrect-color);
+            background-color: #ffe0e0;
+            text-decoration: line-through;
+        }
+        /* 다크모드 채점 결과 */
+        body.dark-mode .test-result.correct {
+            background-color: #004d00;
+        }
+        body.dark-mode .test-result.incorrect {
+            background-color: #4d0000;
+        }
+
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <header>
+            <h3>듣기 연습 프로그램</h3>
+            <div class="file-loader">
+                <p><strong>파일 3개를 로드하세요:</strong></p>
+                <div class="file-input-group">
+                    <label for="mp3-file">🎧 오디오 파일 (ListeningFile.mp3)</label>
+                    <input type="file" id="mp3-file" accept="audio/mpeg">
+                </div>
+                <div class="file-input-group">
+                    <label for="script-file">📝 스크립트 파일 (Script.xlsx)</label>
+                    <input type="file" id="script-file" accept=".xlsx, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet">
+                </div>
+                <div class="file-input-group">
+                    <label for="vocab-file">📚 단어 파일 (Vocab.xlsx)</label>
+                    <input type="file" id="vocab-file" accept=".xlsx, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet">
+                </div>
+            </div>
+            <nav>
+                <div>
+                    <button id="nav-script">스크립트 보기</button>
+                    <button id="nav-test">모의 테스트</button>
+                </div>
+                <div>
+                    <button id="toggle-vocab">단어 하이라이트</button>
+                    <button id="toggle-dark">다크 모드</button>
+                </div>
+            </nav>
+            <audio id="audio-player" controls></audio>
+        </header>
+
+        <div id="script-view" class="view active">
+            <h2>스크립트</h2>
+            <div id="script-list">
+                <p>파일을 먼저 로드해주세요...</p>
+            </div>
+        </div>
+
+        <div id="test-view" class="view">
+            <h2>모의 테스트</h2>
+            <div class="test-controls">
+                <label for="hax-count">hax (빈칸) 개수:</label>
+                <input type="number" id="hax-count" value="10" min="1">
+                <button id="start-test-btn">테스트 시작</button>
+            </div>
+            
+            <div class="test-audio-controls">
+                <button id="play-test-btn" disabled>전체 듣기 (2회 남음)</button>
+                <button id="check-test-btn" disabled>채점하기</button>
+            </div>
+            <div id="test-content">
+                <p>테스트를 시작하세요.</p>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        // --- 1. 전역 변수 및 상태 ---
+        let scriptData = []; // {startTime, endTime, text, rawText}
+        let vocabData = new Set(); // { "word1", "word2" }
+        let highlights = {}; // { sIdx_wIdx: true }
+        let audioPlayer = document.getElementById('audio-player');
+        let audioFile = null;
+
+        let testPlayCount = 0;
+        const MAX_TEST_PLAYS = 2;
+        let testAnswers = []; // { answer, inputs: [input1, input2, ...] }
+
+        // --- 2. 유틸리티 함수 ---
+
+        // (CSV 파서 삭제됨)
+
+        // 시간(MM:SS.s 또는 SS.s)을 초(float)로 변환
+        function timeToSeconds(timeStr) {
+            if (typeof timeStr !== 'string' && typeof timeStr !== 'number') {
+                console.error('Invalid time value:', timeStr);
+                return 0;
+            }
+            const timeStrClean = String(timeStr).trim();
+            const parts = timeStrClean.split(':');
+            
+            if (parts.length > 1) {
+                // "MM:SS.s" 형식
+                const minutes = parseFloat(parts[0]);
+                const seconds = parseFloat(parts[1]);
+                if (isNaN(minutes) || isNaN(seconds)) return 0;
+                return (minutes * 60) + seconds;
+            } else {
+                // "SS.s" 형식
+                const seconds = parseFloat(parts[0]);
+                if (isNaN(seconds)) return 0;
+                return seconds;
+            }
+        }
+
+        // 단어 정리 (하이라이트 및 비교용)
+        function cleanWord(word) {
+            return word.toLowerCase().replace(/^[.,?"'!]*/, '').replace(/[.,?"'!]*$/, '');
+        }
+
+        // 체점용 단어 정리 (쉼표 완전 제거)
+        function cleanWordForScoring(word) {
+            return word.toLowerCase().replace(/,/g, '').replace(/^[.,?"'!]*/, '').replace(/[.,?"'!]*$/, '').trim();
+        }
+
+        // 빈칸 후보에서 제외할 단어인지 확인
+        function shouldExcludeFromHax(word, isFirstWordInSentence = false) {
+            const cleaned = cleanWord(word);
+            const wordWithoutPunctuation = word.replace(/[.,?"'!]*$/, '');
+            
+            // 1. 숫자 체크 (순수 숫자 또는 소수점 포함 숫자)
+            if (/^\d+$/.test(cleaned) || /^\d+[.,]\d+$/.test(cleaned)) {
+                return true;
+            }
+            
+            // 2. 고유명사/이름 체크 (첫 글자가 대문자이고 문장 시작이 아닌 경우)
+            // 모든 글자가 대문자인 경우는 약어일 수 있으므로 제외하지 않음
+            // 이름 패턴: 첫 글자가 대문자이고 나머지가 소문자 (예: Trisdale, John, Mary)
+            if (!isFirstWordInSentence && /^[A-Z]/.test(word)) {
+                // 첫 글자 대문자 + 나머지 소문자 패턴 (이름 패턴)
+                if (/^[A-Z][a-z]+$/.test(wordWithoutPunctuation)) {
+                    return true;
+                }
+            }
+            
+            // 3. 다른 언어 체크 (영어 알파벳이 아닌 문자가 포함된 경우)
+            // 영어 알파벳, 숫자, 기본 구두점만 허용
+            const englishPattern = /^[a-zA-Z0-9.,?"'!\- ]+$/;
+            if (!englishPattern.test(word)) {
+                return true;
+            }
+            
+            // 4. 영어 알파벳이 전혀 없는 경우 (숫자나 구두점만 있는 경우)
+            if (!/[a-zA-Z]/.test(word)) {
+                return true;
+            }
+            
+            return false;
+        }
+
+        // [추가됨] Python의 simple_stem을 JS로 구현
+        function simpleStem(word) {
+            let w = cleanWord(word);
+            if (w.length < 3) return w;
+
+            if (w.endsWith("'s")) w = w.slice(0, -2);
+            
+            if (w.endsWith("s") && !w.endsWith("ss")) {
+                if (w.endsWith("ies")) return w.slice(0, -3) + 'y';
+                if (w.endsWith("es")) {
+                    if (w.length > 4 && "aeiou".indexOf(w.slice(-3, -2)) === -1) {
+                         return w.slice(0, -2);
+                    }
+                    return w.slice(0,-1);
+                }
+                if (w.length > 3) return w.slice(0, -1);
+            }
+            
+            const suffixes = ['ing', 'ed', 'er', 'est', 'ly', 'ment', 'ness', 'ation', 'able', 'ible'];
+            for (const suf of suffixes) {
+                if (w.endsWith(suf) && w.length - suf.length >= 3) {
+                    if (suf === 'ing' && w.length > 4 && w.slice(-4,-3) === w.slice(-5,-4)) {
+                        return w.slice(0,-4);
+                    }
+                    if (suf === 'ed' && w.length > 4 && w.slice(-3,-2) === w.slice(-4,-3)) {
+                        return w.slice(0,-3);
+                    }
+                    return w.slice(0, -suf.length);
+                }
+            }
+            return w;
+        }
+
+        // --- 3. 파일 로딩 ---
+
+        document.getElementById('mp3-file').addEventListener('change', (e) => {
+            audioFile = e.target.files[0];
+            audioPlayer.src = URL.createObjectURL(audioFile);
+            checkFilesLoaded();
+        });
+
+        // [수정됨] XLSX 파일 리더로 변경
+        document.getElementById('script-file').addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                try {
+                    const data = new Uint8Array(event.target.result);
+                    const workbook = XLSX.read(data, {type: 'array'});
+                    const sheetName = workbook.SheetNames[0];
+                    const worksheet = workbook.Sheets[sheetName];
+                    const json = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+                    loadScript(json);
+                    checkFilesLoaded();
+                } catch (err) {
+                    console.error("Error reading script file:", err);
+                    alert("스크립트 파일(Script.xlsx)을 읽는 중 오류가 발생했습니다.");
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        });
+
+        // [수정됨] XLSX 파일 리더로 변경
+        document.getElementById('vocab-file').addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                try {
+                    const data = new Uint8Array(event.target.result);
+                    const workbook = XLSX.read(data, {type: 'array'});
+                    const sheetName = workbook.SheetNames[0];
+                    const worksheet = workbook.Sheets[sheetName];
+                    const json = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+                    loadVocab(json);
+                    checkFilesLoaded();
+                } catch (err) {
+                    console.error("Error reading vocab file:", err);
+                    alert("단어 파일(Vocab.xlsx)을 읽는 중 오류가 발생했습니다.");
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        });
+
+        // [수정됨] CSV 파싱 대신 XLSX JSON 데이터를 처리
+        function loadScript(data) {
+            // data는 [["Start Time", "End Time", "Text"], ["0:01.4", "0:02.4", "The cactus."]] 형태
+            scriptData = data
+                .slice(1) // 헤더 행 제거
+                .filter(row => row && row.length >= 3 && row[0] && row[1] && row[2]) // 유효한 데이터 필터링
+                .map(row => ({
+                    startTime: String(row[0]).trim(),
+                    endTime: String(row[1]).trim(),
+                    text: String(row[2]).trim().replace(/"/g, ''),
+                    rawText: String(row[2]).trim().replace(/"/g, '')
+                }));
+        }
+
+        // [수정됨] CSV 파싱 대신 XLSX JSON 데이터를 처리 + simpleStem 적용
+        function loadVocab(data) {
+            // data는 [["English Word", "Meaning"], ["cactus", "선인장"]] 형태
+            vocabData.clear();
+            data.slice(1) // 헤더 행 제거
+                .forEach(row => {
+                    if (row && row[0]) {
+                        vocabData.add(simpleStem(String(row[0]).trim()));
+                    }
+                });
+        }
+        
+        function checkFilesLoaded() {
+            if (audioFile && scriptData.length > 0 && vocabData.size > 0) {
+                alert('모든 파일이 성공적으로 로드되었습니다!');
+                // hax-count의 max를 문장 수로 설정
+                const haxCountInput = document.getElementById('hax-count');
+                haxCountInput.max = scriptData.length;
+                if (parseInt(haxCountInput.value, 10) > scriptData.length) {
+                    haxCountInput.value = scriptData.length;
+                }
+                displayScript();
+            }
+        }
+
+        // --- 4. 뷰 스크립팅 (스크립트 보기) ---
+
+        function displayScript() {
+            const scriptList = document.getElementById('script-list');
+            scriptList.innerHTML = ''; // 기존 내용 초기화
+            loadHighlights(); // 저장된 하이라이트 로드
+
+            scriptData.forEach((sentence, sIdx) => {
+                const p = document.createElement('p');
+                p.dataset.sIdx = sIdx;
+
+                // 시간 표시
+                const timeSpan = document.createElement('span');
+                timeSpan.className = 'time';
+                timeSpan.textContent = `(${sentence.startTime} - ${sentence.endTime})`;
+                
+                // 문장 표시 (단어별 <span>으로 분리)
+                const sentenceSpan = document.createElement('span');
+                sentenceSpan.className = 'sentence';
+                sentenceSpan.dataset.sIdx = sIdx;
+
+                const words = sentence.text.split(/(\s+)/); // 공백을 포함하여 분리
+                words.forEach((word, wIdx) => {
+                    if (word.trim().length > 0) {
+                        const wordSpan = document.createElement('span');
+                        wordSpan.textContent = word;
+                        wordSpan.dataset.wIdx = wIdx;
+                        
+                        // 저장된 하이라이트 적용
+                        if (highlights[`${sIdx}_${wIdx}`]) {
+                            wordSpan.classList.add('highlighted');
+                        }
+                        sentenceSpan.appendChild(wordSpan);
+                    } else {
+                        sentenceSpan.appendChild(document.createTextNode(word));
+                    }
+                });
+
+                p.appendChild(timeSpan);
+                p.appendChild(sentenceSpan);
+
+                // 문장 클릭 시 오디오 재생
+                p.addEventListener('click', (e) => {
+                    // 단어 하이라이트 로직
+                    if (e.target.tagName === 'SPAN' && e.target.dataset.wIdx) {
+                        toggleHighlight(sIdx, e.target.dataset.wIdx);
+                        e.target.classList.toggle('highlighted');
+                    } else {
+                        // 문장 재생 로직
+                        playSegment(sIdx);
+                    }
+                });
+                scriptList.appendChild(p);
+            });
+        }
+        
+        let stopAudioTimer = null;
+        function playSegment(sIdx) {
+            if (stopAudioTimer) {
+                clearTimeout(stopAudioTimer);
+                stopAudioTimer = null;
+            }
+            
+            const sentence = scriptData[sIdx];
+            const start = timeToSeconds(sentence.startTime);
+            const end = timeToSeconds(sentence.endTime);
+            
+            if (isNaN(start) || isNaN(end)) {
+                alert('스크립트의 시간 형식이 잘못되었습니다. (예: 0:01.4)');
+                return;
+            }
+
+            audioPlayer.currentTime = start;
+            audioPlayer.play();
+
+            stopAudioTimer = setTimeout(() => {
+                audioPlayer.pause();
+            }, (end - start) * 1000);
+        }
+
+        // --- 5. 하이라이트 기능 ---
+
+        function toggleHighlight(sIdx, wIdx) {
+            const key = `${sIdx}_${wIdx}`;
+            if (highlights[key]) {
+                delete highlights[key];
+            } else {
+                highlights[key] = true;
+            }
+            saveHighlights();
+        }
+
+        function saveHighlights() {
+            localStorage.setItem('scriptHighlights', JSON.stringify(highlights));
+        }
+
+        function loadHighlights() {
+            highlights = JSON.parse(localStorage.getItem('scriptHighlights')) || {};
+        }
+
+        // [수정됨] 단어 하이라이트 토글 (simpleStem 적용)
+        document.getElementById('toggle-vocab').addEventListener('click', () => {
+            const scriptList = document.getElementById('script-list');
+            const isToggled = scriptList.classList.toggle('vocab-toggled');
+            
+            document.querySelectorAll('#script-list .sentence span[data-w-idx]').forEach(span => {
+                if (isToggled) {
+                    const word = simpleStem(span.textContent);
+                    if (vocabData.has(word)) {
+                        span.classList.add('vocab');
+                    }
+                } else {
+                    span.classList.remove('vocab');
+                }
+            });
+        });
+
+        // --- 6. 뷰 스크립팅 (모의 테스트) ---
+        
+        document.getElementById('start-test-btn').addEventListener('click', startTest);
+        document.getElementById('play-test-btn').addEventListener('click', playTestAudio);
+        document.getElementById('check-test-btn').addEventListener('click', checkTest);
+
+        function startTest() {
+            const haxCount = parseInt(document.getElementById('hax-count').value, 10);
+            const maxHaxCount = scriptData.length; // 문장 수만큼으로 제한
+            
+            if (haxCount <= 0 || scriptData.length === 0) {
+                alert('hax 개수를 1 이상으로 설정하거나 파일을 먼저 로드하세요.');
+                return;
+            }
+            
+            if (haxCount > maxHaxCount) {
+                alert(`hax 개수는 문장 수(${maxHaxCount}개)를 초과할 수 없습니다.`);
+                document.getElementById('hax-count').value = maxHaxCount;
+                return;
+            }
+
+            // 1. 모든 단어 리스트 생성
+            const allWords = [];
+            scriptData.forEach((sentence, sIdx) => {
+                const words = sentence.rawText.split(' ');
+                words.forEach((word, wIdx) => {
+                    allWords.push({ sIdx, wIdx, word, isFirstWord: wIdx === 0 });
+                });
+            });
+
+            // 2. 빈칸 후보 선정 (vocab 우선, 문장별로 그룹화, 제외 단어 필터링)
+            const vocabCandidates = []; // {sIdx, wordIndex}
+            const otherCandidates = []; // {sIdx, wordIndex}
+            
+            allWords.forEach((word, index) => {
+                // 제외할 단어는 빈칸 후보에서 제외
+                if (shouldExcludeFromHax(word.word, word.isFirstWord)) {
+                    return;
+                }
+                
+                const candidate = { sIdx: word.sIdx, wordIndex: index };
+                if (vocabData.has(cleanWord(word.word))) {
+                    vocabCandidates.push(candidate);
+                } else {
+                    otherCandidates.push(candidate);
+                }
+            });
+            
+            // 3. 후보 섞기
+            const shuffledVocab = vocabCandidates.sort(() => 0.5 - Math.random());
+            const shuffledOther = otherCandidates.sort(() => 0.5 - Math.random());
+            
+            const allCandidates = [
+                ...shuffledVocab,
+                ...shuffledOther
+            ];
+
+            // 4. Hax 데이터 생성 (한 문장당 최대 1개 빈칸)
+            const haxData = []; // {sIdx, wIdx, length, answer}
+            const usedWordIndices = new Set();
+            const usedSentences = new Set(); // 이미 빈칸이 있는 문장 추적
+            
+            for (const candidate of allCandidates) {
+                if (haxData.length >= haxCount) break;
+                
+                // 이미 빈칸이 있는 문장은 건너뛰기
+                if (usedSentences.has(candidate.sIdx)) continue;
+                
+                const wordIndex = candidate.wordIndex;
+                if (usedWordIndices.has(wordIndex)) continue;
+
+                const haxLength = Math.floor(Math.random() * 3) + 1; // 1~3 단어
+                const startWord = allWords[wordIndex];
+                
+                let answerWords = [];
+                let isValidHax = true;
+                
+                for (let i = 0; i < haxLength; i++) {
+                    const currentWordIndex = wordIndex + i;
+                    if (currentWordIndex >= allWords.length || 
+                        usedWordIndices.has(currentWordIndex) ||
+                        allWords[currentWordIndex].sIdx !== startWord.sIdx) { // 문장 넘김 방지
+                        isValidHax = false;
+                        break;
+                    }
+                    
+                    // 빈칸에 포함될 단어도 제외 단어가 아닌지 확인
+                    const currentWord = allWords[currentWordIndex];
+                    if (shouldExcludeFromHax(currentWord.word, currentWord.isFirstWord)) {
+                        isValidHax = false;
+                        break;
+                    }
+                    
+                    answerWords.push(allWords[currentWordIndex].word);
+                    usedWordIndices.add(currentWordIndex);
+                }
+
+                if (isValidHax) {
+                    haxData.push({
+                        sIdx: startWord.sIdx,
+                        wIdx: startWord.wIdx,
+                        length: haxLength,
+                        answer: answerWords.join(' ')
+                    });
+                    usedSentences.add(startWord.sIdx); // 이 문장에 빈칸이 있음을 표시
+                }
+            }
+            
+            // 5. 테스트 화면 렌더링
+            displayTestScript(haxData);
+        }
+
+        function displayTestScript(haxData) {
+            const testContent = document.getElementById('test-content');
+            testContent.innerHTML = '';
+            testAnswers = []; // 이전 답안 초기화
+
+            const haxMap = {}; // sIdx 를 키로 hax 배열을 저장
+            haxData.forEach(hax => {
+                if (!haxMap[hax.sIdx]) {
+                    haxMap[hax.sIdx] = [];
+                }
+                haxMap[hax.sIdx].push(hax);
+            });
+            // wIdx 기준으로 정렬 (중요)
+            for (const sIdx in haxMap) {
+                haxMap[sIdx].sort((a, b) => a.wIdx - b.wIdx);
+            }
+
+            scriptData.forEach((sentence, sIdx) => {
+                const p = document.createElement('p');
+                p.className = 'sentence';
+                
+                if (!haxMap[sIdx]) {
+                    p.textContent = sentence.rawText; // 빈칸 없는 문장
+                } else {
+                    const words = sentence.rawText.split(' ');
+                    const haxInSentence = haxMap[sIdx];
+                    let currentWordIndex = 0;
+                    
+                    while (currentWordIndex < words.length) {
+                        const hax = haxInSentence.find(h => h.wIdx === currentWordIndex);
+                        if (hax) {
+                            // 빈칸 그룹 생성 (단어 수만큼 밑줄 input 생성)
+                            const haxGroup = document.createElement('span');
+                            haxGroup.className = 'hax-input-group';
+                            
+                            const inputs = [];
+                            for (let i = 0; i < hax.length; i++) {
+                                const input = document.createElement('input');
+                                input.type = 'text';
+                                input.className = 'hax-input';
+                                input.placeholder = '___';
+                                
+                                // Space 키로 다음 칸으로 이동
+                                input.addEventListener('keydown', (e) => {
+                                    if (e.key === ' ' || e.key === 'Space') {
+                                        e.preventDefault();
+                                        const currentIndex = inputs.indexOf(input);
+                                        if (currentIndex < inputs.length - 1) {
+                                            inputs[currentIndex + 1].focus();
+                                        }
+                                    }
+                                });
+                                
+                                inputs.push(input);
+                                haxGroup.appendChild(input);
+                                
+                                // 마지막이 아니면 공백 추가
+                                if (i < hax.length - 1) {
+                                    haxGroup.appendChild(document.createTextNode(' '));
+                                }
+                            }
+                            
+                            p.appendChild(haxGroup);
+                            p.appendChild(document.createTextNode(' ')); // 띄어쓰기
+
+                            testAnswers.push({ answer: hax.answer, inputs: inputs });
+                            currentWordIndex += hax.length;
+                        } else {
+                            // 일반 단어
+                            p.appendChild(document.createTextNode(words[currentWordIndex] + ' '));
+                            currentWordIndex++;
+                        }
+                    }
+                }
+                testContent.appendChild(p);
+            });
+            
+            // 테스트 상태 초기화
+            testPlayCount = 0;
+            document.getElementById('play-test-btn').disabled = false;
+            document.getElementById('play-test-btn').textContent = `전체 듣기 (${MAX_TEST_PLAYS - testPlayCount}회 남음)`;
+            document.getElementById('check-test-btn').disabled = false;
+        }
+
+        function playTestAudio() {
+            if (testPlayCount >= MAX_TEST_PLAYS) return;
+
+            testPlayCount++;
+            audioPlayer.currentTime = 0;
+            audioPlayer.play();
+            
+            const remaining = MAX_TEST_PLAYS - testPlayCount;
+            const playBtn = document.getElementById('play-test-btn');
+            playBtn.textContent = `전체 듣기 (${remaining}회 남음)`;
+            
+            if (remaining <= 0) {
+                playBtn.disabled = true;
+            }
+        }
+
+        function checkTest() {
+            if (testAnswers.length === 0) return;
+
+            let correctCount = 0;
+            testAnswers.forEach(item => {
+                // 여러 input의 값을 합쳐서 사용자 답안 생성
+                const userInput = item.inputs.map(input => input.value.trim()).filter(v => v).join(' ');
+                const correctAnswer = item.answer;
+
+                // 쉼표를 제외한 비교
+                const isCorrect = cleanWordForScoring(userInput) === cleanWordForScoring(correctAnswer);
+                
+                // 빈칸 그룹을 결과 span으로 교체
+                const haxGroup = item.inputs[0].parentNode;
+                const resultSpan = document.createElement('span');
+                resultSpan.className = 'test-result';
+                resultSpan.textContent = userInput || '(빈칸)'; // 사용자가 입력한 값
+                resultSpan.dataset.userAnswer = userInput || '(빈칸)';
+                resultSpan.dataset.correctAnswer = correctAnswer;
+                
+                if (isCorrect) {
+                    resultSpan.classList.add('correct');
+                    correctCount++;
+                } else {
+                    resultSpan.classList.add('incorrect');
+                    resultSpan.title = `정답: ${correctAnswer}`; // 마우스 오버 시 정답 표시
+                    resultSpan.style.cursor = 'pointer'; // 클릭 가능 표시
+                    
+                    // 클릭 시 정답과 오답 교차 표시
+                    resultSpan.addEventListener('click', function() {
+                        if (this.dataset.showingCorrect === 'true') {
+                            this.textContent = this.dataset.userAnswer;
+                            this.dataset.showingCorrect = 'false';
+                        } else {
+                            this.textContent = this.dataset.correctAnswer;
+                            this.dataset.showingCorrect = 'true';
+                        }
+                    });
+                }
+                
+                // haxGroup을 결과 span으로 교체
+                haxGroup.parentNode.replaceChild(resultSpan, haxGroup);
+            });
+            
+            alert(`채점 완료! ${testAnswers.length}개 중 ${correctCount}개 맞았습니다.`);
+            
+            // 버튼 비활성화 (재채점 방지)
+            document.getElementById('check-test-btn').disabled = true;
+            document.getElementById('play-test-btn').disabled = true;
+            
+            // TODO: 시험 결과 저장 (localStorage)
+        }
+
+        // --- 7. 네비게이션 및 다크 모드 ---
+
+        function showView(viewId) {
+            document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+            document.getElementById(viewId).classList.add('active');
+        }
+
+        document.getElementById('nav-script').addEventListener('click', () => showView('script-view'));
+        document.getElementById('nav-test').addEventListener('click', () => showView('test-view'));
+
+        // 다크 모드
+        document.getElementById('toggle-dark').addEventListener('click', () => {
+            document.body.classList.toggle('dark-mode');
+            localStorage.setItem('darkMode', document.body.classList.contains('dark-mode'));
+        });
+
+        // --- 8. 초기화 ---
+        function init() {
+            // 다크 모드 설정 로드
+            if (localStorage.getItem('darkMode') === 'true') {
+                document.body.classList.add('dark-mode');
+            }
+            // 하이라이트 로드 (displayScript에서 처리)
+            // 기본 뷰 활성화
+            showView('script-view');
+        }
+
+        init();
+
+    </script>
+</body>
+</html>
